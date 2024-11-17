@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog Application</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #007bff;
+    }
+    h2 {
+      color: #333;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 5px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    textarea {
+      min-height: 150px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    button {
+      padding: 10px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .blog-post {
+      background-color: #fafafa;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      border-left: 4px solid #007bff;
+      position: relative;
+    }
+    .blog-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .edit-btn, .delete-btn {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    .edit-btn:hover, .delete-btn:hover {
+      background-color: #0056b3;
+    }
+    .popup {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #333;
+      color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      display: none;
+      font-size: 14px;
+      max-width: 300px;
+      text-align: center;
+      z-index: 1000;
+    }
+    .popup.success {
+      background-color: #4caf50;
+    }
+    .popup.error {
+      background-color: #f44336;
+    }
+    .timestamp {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blog Application</h1>
+    <h2>Create New Blog</h2>
+    <form id="createForm">
+      <input type="text" id="title" placeholder="Blog Title" required>
+      <textarea id="content" placeholder="Blog Content" required></textarea>
+      <button type="submit">Create Blog</button>
+    </form>
+
+    <h2>Blogs</h2>
+    <div id="blogs"></div>
+  </div>
+
+  <div id="popup" class="popup"></div>
+
+  <script>
+    function showPopup(message, type) {
+      const popup = document.getElementById('popup');
+      popup.textContent = message;
+      popup.className = `popup ${type}`;
+      popup.style.display = 'block';
+      setTimeout(() => {
+        popup.style.display = 'none';
+      }, 3000);
+    }
+
+    function formatDate(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleString();
+    }
+
+    async function loadBlogs() {
+      try {
+        const response = await fetch('https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/getBlogs');
+        if (!response.ok) throw new Error("Failed to load blogs");
+
+        const data = await response.json();
+        const blogs = JSON.parse(data.body); 
+
+        const blogsContainer = document.getElementById('blogs');
+        blogsContainer.innerHTML = '';
+
+        blogs.forEach(blog => {
+          const title = blog.title.S;
+          const content = blog.content.S;
+          const createdAt = blog.createdAt.S;
+          const updatedAt = blog.updatedAt.S;
+          
+          blogsContainer.innerHTML += `
+            <div class="blog-post" data-id="${blog.id.S}">
+              <h3>${title}</h3>
+              <p>${content}</p>
+              <div class="timestamp">Created at: ${formatDate(createdAt)}</div>
+              <div class="timestamp">Updated at: ${formatDate(updatedAt)}</div>
+              <div class="blog-actions">
+                <button class="edit-btn" onclick="editBlog('${blog.id.S}')">Edit</button>
+                <button class="delete-btn" onclick="deleteBlog('${blog.id.S}')">Delete</button>
+              </div>
+            </div>`;
+        });
+
+        showPopup("Blogs loaded successfully!", "success");
+      } catch (error) {
+        showPopup("Error loading blogs", "error");
+      }
+    }
+
+    document.getElementById('createForm').addEventListener('submit', async function(event) {
+      event.preventDefault();
+      
+      const title = document.getElementById('title').value;
+      const content = document.getElementById('content').value;
+
+      if (!title || !content) {
+        showPopup("Title and content cannot be empty", "error");
+        return;
+      }
+
+      const payload = {
+        body: JSON.stringify({ title, content })
+      };
+
+      try {
+        const response = await fetch('https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/addBlog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload) 
+        });
+
+        if (!response.ok) {
+          const errorMessage = await response.text();
+          showPopup("Failed to create blog. " + errorMessage, "error");
+          return;
+        }
+
+        showPopup("Blog created successfully!", "success");
+        document.getElementById('createForm').reset();
+        loadBlogs();  
+      } catch (error) {
+        showPopup("Error creating blog: " + error.message, "error");
+      }
+    });
+
+    async function deleteBlog(id) {
+      if (confirm("Are you sure you want to delete this blog?")) {
+        const payload = {
+          body: JSON.stringify({ id: id })
+        };
+
+        try {
+          const response = await fetch('https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/deleteBlog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) throw new Error("Failed to delete blog");
+
+          showPopup("Blog deleted successfully!", "success");
+          loadBlogs();  
+        } catch (error) {
+          showPopup("Error deleting blog", "error");
+        }
+      }
+    }
+
+    async function editBlog(id) {
+  const blogPost = document.querySelector(`.blog-post[data-id="${id}"]`);
+  const title = blogPost.querySelector("h3").textContent;
+  const content = blogPost.querySelector("p").textContent;
+  
+  // Populate the form with the current values
+  document.getElementById('title').value = title;
+  document.getElementById('content').value = content;
+
+  const createButton = document.querySelector('#createForm button');
+  createButton.textContent = "Update Blog";
+
+  createButton.onclick = async function (event) {
+    event.preventDefault();
+    const newTitle = document.getElementById('title').value;
+    const newContent = document.getElementById('content').value;
+
+    // Ensure both title and content are provided
+    if (!newTitle || !newContent) {
+      showPopup("Title and content cannot be empty", "error");
+      return;
+    }
+
+    const payload = {
+      id: id,
+      title: newTitle,
+      content: newContent
+    };
+
+    try {
+      const response = await fetch(`https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/updateBlog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update blog");
+      }
+
+      showPopup("Blog updated successfully!", "success");
+      document.getElementById('createForm').reset();
+      createButton.textContent = "Create Blog";  // Reset the button
+      createButton.onclick = null;  // Clear the click event for the button
+      loadBlogs();  // Reload the blogs after update
+    } catch (error) {
+      showPopup("Error updating blog: " + error.message, "error");
+    }
+  };
+}
+
+
+    loadBlogs();
+  </script>
+</body>
+</html>
