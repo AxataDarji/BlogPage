@@ -131,8 +131,6 @@
   <div id="popup" class="popup"></div>
 
   <script>
-    const apiUrl = "{{API_GATEWAY_URL}}"; // Placeholder for API Gateway URL 
-    console.log(`Using API Gateway URL: ${apiUrl}`);
     function showPopup(message, type) {
       const popup = document.getElementById('popup');
       popup.textContent = message;
@@ -150,7 +148,7 @@
 
     function loadBlogs() {
       $.ajax({
-        url: apiUrl+'/blogs/show',
+        url: '/blogs/show',
         method: 'GET',
         success: function(response) {
           const blogs = JSON.parse(response.body);
@@ -195,7 +193,7 @@
         return;
       }
         $.ajax({
-          url: apiUrl+'/blogs/add',
+          url: '/blogs/add',
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify({
@@ -217,7 +215,7 @@
       const requestBody = JSON.stringify({ body: JSON.stringify({ id: id }) });
       console.log("request is" + requestBody);
       $.ajax({
-        url: apiUrl+'/blogs/delete',
+        url: '/blogs/delete',
         method: "POST",
         contentType: 'application/json',
         data: JSON.stringify({
@@ -264,7 +262,7 @@
         };
 
         $.ajax({
-          url: apiUrl+'/blogs/edit',
+          url: '/blogs/edit',
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(payload),
