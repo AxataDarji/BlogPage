@@ -112,6 +112,7 @@
       margin-top: 5px;
     }
   </style>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -130,6 +131,7 @@
   <div id="popup" class="popup"></div>
 
   <script>
+    const apiUrl = "{{API_GATEWAY_URL}}"; // Placeholder for API Gateway URL 
     function showPopup(message, type) {
       const popup = document.getElementById('popup');
       popup.textContent = message;
@@ -145,152 +147,139 @@
       return date.toLocaleString();
     }
 
-    async function loadBlogs() {
-      try {
-        const response = await fetch('https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/getBlogs');
-        if (!response.ok) throw new Error("Failed to load blogs");
+    function loadBlogs() {
+      $.ajax({
+        url: apiUrl+'/blogs/show',
+        method: 'GET',
+        success: function(response) {
+          const blogs = JSON.parse(response.body);
+          const blogsContainer = document.getElementById('blogs');
+          blogsContainer.innerHTML = '';
 
-        const data = await response.json();
-        const blogs = JSON.parse(data.body); 
+          blogs.forEach(blog => {
+            const title = blog.title.S;
+            const content = blog.content.S;
+            const createdAt = blog.createdAt.S;
+            const updatedAt = blog.updatedAt.S;
 
-        const blogsContainer = document.getElementById('blogs');
-        blogsContainer.innerHTML = '';
+            blogsContainer.innerHTML += `
+              <div class="blog-post" data-id="${blog.id.S}">
+                <h3>${title}</h3>
+                <p>${content}</p>
+                <div class="timestamp">Created at: ${formatDate(createdAt)}</div>
+                <div class="timestamp">Updated at: ${formatDate(updatedAt)}</div>
+                <div class="blog-actions">
+                  <button class="edit-btn" onclick="editBlog('${blog.id.S}')">Edit</button>
+                  <button class="delete-btn" onclick="deleteBlog('${blog.id.S}')">Delete</button>
+                </div>
+              </div>`;
+          });
 
-        blogs.forEach(blog => {
-          const title = blog.title.S;
-          const content = blog.content.S;
-          const createdAt = blog.createdAt.S;
-          const updatedAt = blog.updatedAt.S;
-          
-          blogsContainer.innerHTML += `
-            <div class="blog-post" data-id="${blog.id.S}">
-              <h3>${title}</h3>
-              <p>${content}</p>
-              <div class="timestamp">Created at: ${formatDate(createdAt)}</div>
-              <div class="timestamp">Updated at: ${formatDate(updatedAt)}</div>
-              <div class="blog-actions">
-                <button class="edit-btn" onclick="editBlog('${blog.id.S}')">Edit</button>
-                <button class="delete-btn" onclick="deleteBlog('${blog.id.S}')">Delete</button>
-              </div>
-            </div>`;
-        });
-
-        showPopup("Blogs loaded successfully!", "success");
-      } catch (error) {
-        showPopup("Error loading blogs", "error");
-      }
+          showPopup("Blogs loaded successfully!", "success");
+        },
+        error: function() {
+          showPopup("Error loading blogs", "error");
+        }
+      });
     }
 
-    document.getElementById('createForm').addEventListener('submit', async function(event) {
+    $('#createForm').submit(function(event) {
       event.preventDefault();
       
-      const title = document.getElementById('title').value;
-      const content = document.getElementById('content').value;
+      const title = $('#title').val();
+      const content = $('#content').val();
 
       if (!title || !content) {
         showPopup("Title and content cannot be empty", "error");
         return;
       }
-
-      const payload = {
-        body: JSON.stringify({ title, content })
-      };
-
-      try {
-        const response = await fetch('https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/addBlog', {
+        $.ajax({
+          url: apiUrl+'/blogs/add',
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload) 
+          contentType: 'application/json',
+          data: JSON.stringify({
+              title: title,
+              content: content
+          }),
+          success: function(response) {
+            showPopup("Blog created successfully!", "success");
+            $('#createForm')[0].reset();  // Assuming you're resetting the form after submission
+            loadBlogs();  // Function to reload the list of blogs
+          },
+          error: function(xhr, status, error) {
+            showPopup("Error creating blog: " + xhr.responseText, "error");
+          }
         });
+    });
 
-        if (!response.ok) {
-          const errorMessage = await response.text();
-          showPopup("Failed to create blog. " + errorMessage, "error");
+    function deleteBlog(id) {
+      const requestBody = JSON.stringify({ body: JSON.stringify({ id: id }) });
+      console.log("request is" + requestBody);
+      $.ajax({
+        url: apiUrl+'/blogs/delete',
+        method: "POST",
+        contentType: 'application/json',
+        data: JSON.stringify({
+          id:id
+        }),
+        success: function(response) {
+          showPopup("Item deleted successfully!", "success");
+          //alert('Item deleted successfully!');
+          //$('#itemList').empty();
+          loadBlogs();
+        },
+        error: function(xhr, status, error) {
+          console.error("Error occurred: ", status, error);
+          showPopup('Could not delete the item. Please try again.');
+        }
+      });
+    }
+
+    function editBlog(id) {
+      const blogPost = document.querySelector(`.blog-post[data-id="${id}"]`);
+      const title = blogPost.querySelector("h3").textContent;
+      const content = blogPost.querySelector("p").textContent;
+
+      $('#title').val(title);
+      $('#content').val(content);
+
+      const createButton = $('#createForm button');
+      createButton.text("Update Blog");
+
+      createButton.off('click').on('click', function(event) {
+        event.preventDefault();
+        const newTitle = $('#title').val();
+        const newContent = $('#content').val();
+
+        if (!newTitle || !newContent) {
+          showPopup("Title and content cannot be empty", "error");
           return;
         }
 
-        showPopup("Blog created successfully!", "success");
-        document.getElementById('createForm').reset();
-        loadBlogs();  
-      } catch (error) {
-        showPopup("Error creating blog: " + error.message, "error");
-      }
-    });
-
-    async function deleteBlog(id) {
-      if (confirm("Are you sure you want to delete this blog?")) {
         const payload = {
-          body: JSON.stringify({ id: id })
+          id: id,
+          title: newTitle,
+          content: newContent
         };
 
-        try {
-          const response = await fetch('https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/deleteBlog', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) throw new Error("Failed to delete blog");
-
-          showPopup("Blog deleted successfully!", "success");
-          loadBlogs();  
-        } catch (error) {
-          showPopup("Error deleting blog", "error");
-        }
-      }
-    }
-
-    async function editBlog(id) {
-  const blogPost = document.querySelector(`.blog-post[data-id="${id}"]`);
-  const title = blogPost.querySelector("h3").textContent;
-  const content = blogPost.querySelector("p").textContent;
-  
-  // Populate the form with the current values
-  document.getElementById('title').value = title;
-  document.getElementById('content').value = content;
-
-  const createButton = document.querySelector('#createForm button');
-  createButton.textContent = "Update Blog";
-
-  createButton.onclick = async function (event) {
-    event.preventDefault();
-    const newTitle = document.getElementById('title').value;
-    const newContent = document.getElementById('content').value;
-
-    // Ensure both title and content are provided
-    if (!newTitle || !newContent) {
-      showPopup("Title and content cannot be empty", "error");
-      return;
-    }
-
-    const payload = {
-      id: id,
-      title: newTitle,
-      content: newContent
-    };
-
-    try {
-      const response = await fetch(`https://l4wer10mv8.execute-api.us-east-1.amazonaws.com/DEV/updateBlog`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        $.ajax({
+          url: apiUrl+'/blogs/edit',
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(payload),
+          success: function() {
+            showPopup("Blog updated successfully!", "success");
+            $('#createForm')[0].reset();
+            createButton.text("Create Blog");
+            createButton.off('click');
+            loadBlogs();
+          },
+          error: function() {
+            showPopup("Error updating blog", "error");
+          }
+        });
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to update blog");
-      }
-
-      showPopup("Blog updated successfully!", "success");
-      document.getElementById('createForm').reset();
-      createButton.textContent = "Create Blog";  // Reset the button
-      createButton.onclick = null;  // Clear the click event for the button
-      loadBlogs();  // Reload the blogs after update
-    } catch (error) {
-      showPopup("Error updating blog: " + error.message, "error");
     }
-  };
-}
-
 
     loadBlogs();
   </script>
